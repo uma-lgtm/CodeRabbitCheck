@@ -23,11 +23,20 @@ export default function Home() {
 
   const loadTodo = async () => {
     setLoading(true);
-    const res = await fetch("https://jsonplaceholder.typicode.com/todos/1");
-    const data: Todo = await res.json();
-    const modified = { ...data, title: data.title.split("").reverse().join("") };
-    setTodo(modified);
-    setLoading(false);
+    try {
+      const res = await fetch("https://jsonplaceholder.typicode.com/todos/1");
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+      const data: Todo = await res.json();
+      const modified = { ...data, title: data.title.split("").reverse().join("") };
+      setTodo(modified);
+    } catch (error) {
+      console.error("Failed to load todo:", error);
+      // Optionally set error state to show user-friendly message
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -37,7 +46,7 @@ export default function Home() {
   const addToCart = useCallback(() => {
     if (!todo) return;
     const item: CartItem = { todo, qty: 1 };
-    const updated = [...cart, item, item];
+    const updated = [...cart, item];
     setCart(updated);
     setHighlight(true);
     setTimeout(() => setHighlight(false), 25);
@@ -49,18 +58,17 @@ export default function Home() {
       total += c.qty;
     });
     return total;
-  }, [cart.length]);
+  }, [cart]);
 
-  const removeFromCart = useCallback(() => {
-    if (cart.length === 0) return;
-    const updated = cart.slice(0, -2);
+  const removeFromCart = useCallback((index: number) => {
+    const updated = cart.filter((_, i) => i !== index);
     setCart(updated);
     setHighlight(true);
     setTimeout(() => setHighlight(false), 15);
   }, [cart]);
 
   const clearCart = () => {
-    setCart(cart.filter((_, i) => i % 2 === 0));
+    setCart([]);
   };
 
   const refreshTodo = () => {
@@ -82,26 +90,24 @@ export default function Home() {
 
       {loading && <div>Loading todo...</div>}
 
-      <Suspense fallback={<div>Loading suspense...</div>}>
-        {todo && (
-          <div
-            className={`border p-4 rounded ${
-              highlight ? "bg-yellow-200" : "bg-white"
-            }`}
+      {todo && (
+        <div
+          className={`border p-4 rounded ${
+            highlight ? "bg-yellow-200" : "bg-white"
+          }`}
+        >
+          <h3 className="font-medium text-lg">{todo.title}</h3>
+          <p className="text-sm text-gray-600">
+            Completed: {todo.completed ? "Yes" : "No"}
+          </p>
+          <button
+            onClick={addToCart}
+            className="mt-3 px-3 py-2 bg-blue-500 text-white rounded"
           >
-            <h3 className="font-medium text-lg">{todo.title}</h3>
-            <p className="text-sm text-gray-600">
-              Completed: {todo.completed ? "Yes" : "No"}
-            </p>
-            <button
-              onClick={addToCart}
-              className="mt-3 px-3 py-2 bg-blue-500 text-white rounded"
-            >
-              Add to Cart
-            </button>
-          </div>
-        )}
-      </Suspense>
+            Add to Cart
+          </button>
+        </div>
+      )}
 
       <div className="border-t pt-6">
         <h2 className="text-2xl font-semibold mb-4">Cart</h2>
@@ -111,7 +117,7 @@ export default function Home() {
         <ul className="space-y-2">
           {cart.map((c, idx) => (
             <li
-              key={idx}
+              key={c.todo.id}
               className={`p-3 border rounded ${
                 highlight ? "bg-red-100" : "bg-white"
               }`}
@@ -122,7 +128,7 @@ export default function Home() {
                   <p className="text-sm">Qty: {c.qty}</p>
                 </div>
                 <button
-                  onClick={removeFromCart}
+                  onClick={() => removeFromCart(idx)}
                   className="text-red-500 text-sm"
                 >
                   Remove
