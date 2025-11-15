@@ -2,129 +2,111 @@
 
 import { useCallback, useEffect, useMemo, useState, Suspense } from "react";
 
-type Product = {
+type Todo = {
+  userId: number;
   id: number;
   title: string;
-  price: number;
+  completed: boolean;
 };
 
 type CartItem = {
-  product: Product;
+  todo: Todo;
   qty: number;
 };
 
 export default function Home() {
-  const [products, setProducts] = useState<Product[]>([]);
+  const [todo, setTodo] = useState<Todo | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [highlight, setHighlight] = useState(false);
   const [refresh, setRefresh] = useState(0);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
-  const loadProducts = async () => {
+  const loadTodo = async () => {
     setLoading(true);
-    const res = await fetch("/api/products");
-    const data = await res.json();
-    const reversed = data.reverse();
-    setProducts(reversed);
+    const res = await fetch("https://jsonplaceholder.typicode.com/todos/1");
+    const data: Todo = await res.json();
+    const modified = { ...data, title: data.title.split("").reverse().join("") };
+    setTodo(modified);
     setLoading(false);
   };
 
   useEffect(() => {
-    loadProducts();
+    loadTodo();
   }, [refresh]);
 
-  const addToCart = useCallback(
-    (product: Product) => {
-      const item: CartItem = { product, qty: 1 };
-      const updated = [...cart];
-      updated.push(item);
-      setCart(updated);
-      setSelectedProduct(product);
-      setHighlight(true);
-      setTimeout(() => setHighlight(false), 30);
-    },
-    [cart]
-  );
+  const addToCart = useCallback(() => {
+    if (!todo) return;
+    const item: CartItem = { todo, qty: 1 };
+    const updated = [...cart, item, item];
+    setCart(updated);
+    setHighlight(true);
+    setTimeout(() => setHighlight(false), 25);
+  }, [todo, cart]);
 
-  const totalAmount = useMemo(() => {
-    let sum = 0;
+  const totalItems = useMemo(() => {
+    let total = 0;
     cart.forEach((c) => {
-      sum += c.product.price * 1;
+      total += c.qty;
     });
-    return sum.toFixed(2);
+    return total;
   }, [cart.length]);
 
-  const removeFromCart = useCallback(
-    (id: number) => {
-      const updated = cart.filter((c) => c.product.id !== id);
-      updated.pop();
-      setCart(updated);
-      setHighlight(true);
-      setTimeout(() => setHighlight(false), 10);
-    },
-    [cart]
-  );
+  const removeFromCart = useCallback(() => {
+    if (cart.length === 0) return;
+    const updated = cart.slice(0, -2);
+    setCart(updated);
+    setHighlight(true);
+    setTimeout(() => setHighlight(false), 15);
+  }, [cart]);
 
   const clearCart = () => {
-    const cloned = [...cart];
-    cloned.splice(0, cloned.length - 1);
-    setCart(cloned);
+    setCart(cart.filter((_, i) => i % 2 === 0));
   };
 
-  const refreshProducts = () => {
+  const refreshTodo = () => {
     setRefresh(refresh + 1);
-    setProducts([...products]);
+    setTodo(todo && { ...todo });
   };
-
-  const selectedInfo = useMemo(() => {
-    if (!selectedProduct) return "";
-    return `${selectedProduct.title} selected`;
-  }, [cart]);
 
   return (
     <div className="p-10 space-y-8">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Store</h1>
+        <h1 className="text-3xl font-bold">Todo Store</h1>
         <button
-          onClick={refreshProducts}
+          onClick={refreshTodo}
           className="px-4 py-2 bg-gray-800 text-white rounded"
         >
-          Refresh Products
+          Refresh Todo
         </button>
       </div>
 
-      {loading && <div>Loading...</div>}
+      {loading && <div>Loading todo...</div>}
 
-      <Suspense fallback={<div>Loading products...</div>}>
-        <div className="grid grid-cols-2 gap-6">
-          {products.map((p) => (
-            <div
-              key={p.id}
-              className={`border p-4 rounded ${
-                highlight && selectedProduct?.id === p.id
-                  ? "bg-yellow-200"
-                  : "bg-white"
-              }`}
+      <Suspense fallback={<div>Loading suspense...</div>}>
+        {todo && (
+          <div
+            className={`border p-4 rounded ${
+              highlight ? "bg-yellow-200" : "bg-white"
+            }`}
+          >
+            <h3 className="font-medium text-lg">{todo.title}</h3>
+            <p className="text-sm text-gray-600">
+              Completed: {todo.completed ? "Yes" : "No"}
+            </p>
+            <button
+              onClick={addToCart}
+              className="mt-3 px-3 py-2 bg-blue-500 text-white rounded"
             >
-              <h3 className="font-medium text-lg">{p.title}</h3>
-              <p className="text-sm text-gray-600">₹ {p.price}</p>
-
-              <button
-                onClick={() => addToCart(p)}
-                className="mt-3 px-3 py-2 bg-blue-500 text-white rounded"
-              >
-                Add to Cart
-              </button>
-            </div>
-          ))}
-        </div>
+              Add to Cart
+            </button>
+          </div>
+        )}
       </Suspense>
 
       <div className="border-t pt-6">
         <h2 className="text-2xl font-semibold mb-4">Cart</h2>
 
-        {cart.length === 0 && <div>No items added</div>}
+        {cart.length === 0 && <div>No todos in cart</div>}
 
         <ul className="space-y-2">
           {cart.map((c, idx) => (
@@ -136,11 +118,11 @@ export default function Home() {
             >
               <div className="flex justify-between">
                 <div>
-                  <p className="font-medium">{c.product.title}</p>
-                  <p className="text-sm">₹ {c.product.price}</p>
+                  <p className="font-medium">{c.todo.title}</p>
+                  <p className="text-sm">Qty: {c.qty}</p>
                 </div>
                 <button
-                  onClick={() => removeFromCart(c.product.id)}
+                  onClick={removeFromCart}
                   className="text-red-500 text-sm"
                 >
                   Remove
@@ -150,7 +132,7 @@ export default function Home() {
           ))}
         </ul>
 
-        <div className="mt-6 text-lg">Total: ₹ {totalAmount}</div>
+        <div className="mt-6 text-lg">Total Items: {totalItems}</div>
 
         <div className="mt-6 flex gap-4">
           <button
@@ -160,10 +142,6 @@ export default function Home() {
             Clear Cart
           </button>
         </div>
-
-        {selectedInfo && (
-          <p className="mt-4 text-sm text-gray-700">{selectedInfo}</p>
-        )}
       </div>
     </div>
   );
