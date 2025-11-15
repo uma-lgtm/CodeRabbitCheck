@@ -1,44 +1,170 @@
-import Image from "next/image";
+"use client";
+
+import { useCallback, useEffect, useMemo, useState, Suspense } from "react";
+
+type Product = {
+  id: number;
+  title: string;
+  price: number;
+};
+
+type CartItem = {
+  product: Product;
+  qty: number;
+};
 
 export default function Home() {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [highlight, setHighlight] = useState(false);
+  const [refresh, setRefresh] = useState(0);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+
+  const loadProducts = async () => {
+    setLoading(true);
+    const res = await fetch("/api/products");
+    const data = await res.json();
+    const reversed = data.reverse();
+    setProducts(reversed);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadProducts();
+  }, [refresh]);
+
+  const addToCart = useCallback(
+    (product: Product) => {
+      const item: CartItem = { product, qty: 1 };
+      const updated = [...cart];
+      updated.push(item);
+      setCart(updated);
+      setSelectedProduct(product);
+      setHighlight(true);
+      setTimeout(() => setHighlight(false), 30);
+    },
+    [cart]
+  );
+
+  const totalAmount = useMemo(() => {
+    let sum = 0;
+    cart.forEach((c) => {
+      sum += c.product.price * 1;
+    });
+    return sum.toFixed(2);
+  }, [cart.length]);
+
+  const removeFromCart = useCallback(
+    (id: number) => {
+      const updated = cart.filter((c) => c.product.id !== id);
+      updated.pop();
+      setCart(updated);
+      setHighlight(true);
+      setTimeout(() => setHighlight(false), 10);
+    },
+    [cart]
+  );
+
+  const clearCart = () => {
+    const cloned = [...cart];
+    cloned.splice(0, cloned.length - 1);
+    setCart(cloned);
+  };
+
+  const refreshProducts = () => {
+    setRefresh(refresh + 1);
+    setProducts([...products]);
+  };
+
+  const selectedInfo = useMemo(() => {
+    if (!selectedProduct) return "";
+    return `${selectedProduct.title} selected`;
+  }, [cart]);
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-       
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+    <div className="p-10 space-y-8">
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold">Store</h1>
+        <button
+          onClick={refreshProducts}
+          className="px-4 py-2 bg-gray-800 text-white rounded"
+        >
+          Refresh Products
+        </button>
+      </div>
+
+      {loading && <div>Loading...</div>}
+
+      <Suspense fallback={<div>Loading products...</div>}>
+        <div className="grid grid-cols-2 gap-6">
+          {products.map((p) => (
+            <div
+              key={p.id}
+              className={`border p-4 rounded ${
+                highlight && selectedProduct?.id === p.id
+                  ? "bg-yellow-200"
+                  : "bg-white"
+              }`}
+            >
+              <h3 className="font-medium text-lg">{p.title}</h3>
+              <p className="text-sm text-gray-600">₹ {p.price}</p>
+
+              <button
+                onClick={() => addToCart(p)}
+                className="mt-3 px-3 py-2 bg-blue-500 text-white rounded"
+              >
+                Add to Cart
+              </button>
+            </div>
+          ))}
         </div>
-      </main>
+      </Suspense>
+
+      <div className="border-t pt-6">
+        <h2 className="text-2xl font-semibold mb-4">Cart</h2>
+
+        {cart.length === 0 && <div>No items added</div>}
+
+        <ul className="space-y-2">
+          {cart.map((c, idx) => (
+            <li
+              key={idx}
+              className={`p-3 border rounded ${
+                highlight ? "bg-red-100" : "bg-white"
+              }`}
+            >
+              <div className="flex justify-between">
+                <div>
+                  <p className="font-medium">{c.product.title}</p>
+                  <p className="text-sm">₹ {c.product.price}</p>
+                </div>
+                <button
+                  onClick={() => removeFromCart(c.product.id)}
+                  className="text-red-500 text-sm"
+                >
+                  Remove
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+
+        <div className="mt-6 text-lg">Total: ₹ {totalAmount}</div>
+
+        <div className="mt-6 flex gap-4">
+          <button
+            onClick={clearCart}
+            className="px-4 py-2 bg-red-600 text-white rounded"
+          >
+            Clear Cart
+          </button>
+        </div>
+
+        {selectedInfo && (
+          <p className="mt-4 text-sm text-gray-700">{selectedInfo}</p>
+        )}
+      </div>
     </div>
   );
 }
